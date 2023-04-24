@@ -28,7 +28,7 @@ suffix=""
 
 if [ $2 = "spider" ]
 then
-    if [ $3 = "api" ]
+    if [ "$3" = "api" ]
     then
         # spider's test set
         table_path="/data/spider/tables.json"
@@ -38,7 +38,7 @@ then
     else
         table_path="./data/spider/tables.json"
         input_dataset_path="./data/spider/dev.json"
-        db_path="./database"
+        db_path="./data/spider/database"
         output="./predictions/Spider-dev/$model_name/pred.sql"
     fi
 elif [ $2 = "spider-realistic" ]
