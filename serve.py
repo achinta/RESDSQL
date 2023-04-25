@@ -9,18 +9,20 @@ from pathlib import Path
 from third_party.spider.preprocess.get_tables import dump_db_json_schema
 import sqlite3
 import logging
+from utils import sqlite as sqlite_utils
+from utils.jdbc import JDBCData, jdbc_to_sqlite, preprocess_jdbc_conn
 
 logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
-spider_db_dir = '/data/spider/database'
+spider_db_dir = sqlite_utils.get_spider_db_dir()
 query_dir = '/data/query'
 sqlite_db_dict = {Path(f).stem:Path(f) for f in Path(spider_db_dir).rglob('*.sqlite')}
 spider_db_ids = [o['db_id'] for o in json.load(open('/data/spider/tables.json'))]
 Path(query_dir).mkdir(parents=True, exist_ok=True)
 
-def get_sqlite_path(db_id, db_type):
+def get_sqlite_path(db_id):
     return f'{spider_db_dir}/{db_id}/{db_id}.sqlite'
 
 def get_db_dict(force_refresh=False):
@@ -34,7 +36,7 @@ def create_sqlite_file(schema_json):
     if db_id in spider_db_ids:
         raise HTTPException(status_code=400, detail=f"db_id {db_id} already exists in spider")
 
-    sqlite_path = get_sqlite_path(schema_json['db_id'], 'custom')
+    sqlite_path = get_sqlite_path(schema_json['db_id'])
     logger.info(f'sqlite path is {sqlite_path}')
     # create parent if not exists
     Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
@@ -99,9 +101,17 @@ def schema_custom_list():
     '''list all custom schemas'''
     return [db_id for db_id in get_db_dict().keys() if db_id not in spider_db_ids]
 
+@app.post("/schema/custom/from_jdbc")
+def schema_custom_from_jdbc(jdbc_data: JDBCData):
+    '''create custom schema from jdbc'''
+    jdbc_data = preprocess_jdbc_conn(jdbc_data)
+    return jdbc_to_sqlite(jdbc_data)
+
 @app.get("/schema/custom/{db_id}")
 def schema_spider_list(db_id):
-    return dump_db_json_schema(f'{custom_db_dir}/{db_id}.sqlite', db_id)
+    sqlite_path = get_sqlite_path(db_id)
+    logger.info(f'sqlite path is {sqlite_path}')
+    return dump_db_json_schema(sqlite_path, db_id)
 
 @app.post("/schema/custom/")
 def schema_custom_create(schema: SQLiteSchema):
