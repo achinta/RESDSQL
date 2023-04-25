@@ -16,3 +16,4 @@ gdown
 fastapi
 uvicorn
 jaydebeapi
+pymongo

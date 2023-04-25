@@ -10,7 +10,7 @@ from third_party.spider.preprocess.get_tables import dump_db_json_schema
 import sqlite3
 import logging
 from utils import sqlite as sqlite_utils
-from utils.jdbc import JDBCData, jdbc_to_sqlite, preprocess_jdbc_conn
+from utils.jdbc import JDBCData, jdbc_to_sqlite, get_jdbc_conn_from_mongo
 
 logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 logger = logging.getLogger(__name__) 
@@ -101,10 +101,10 @@ def schema_custom_list():
     '''list all custom schemas'''
     return [db_id for db_id in get_db_dict().keys() if db_id not in spider_db_ids]
 
-@app.post("/schema/custom/from_jdbc")
-def schema_custom_from_jdbc(jdbc_data: JDBCData):
+@app.post("/schema/custom/from_jdbc/{db_mongo_id}")
+def schema_custom_from_jdbc(db_mongo_id):
     '''create custom schema from jdbc'''
-    jdbc_data = preprocess_jdbc_conn(jdbc_data)
+    jdbc_data = get_jdbc_conn_from_mongo(db_mongo_id)
     return jdbc_to_sqlite(jdbc_data)
 
 @app.get("/schema/custom/{db_id}")

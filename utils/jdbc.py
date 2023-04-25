@@ -1,9 +1,12 @@
 import jaydebeapi
+from pymongo import MongoClient
 from pydantic import BaseModel
 from fastapi import HTTPException
 from .sqlite import get_spider_db_dir
 import sqlite3
 from pathlib import Path
+import os
+import base64
 
 class JDBCData(BaseModel):
     db_id: str
@@ -13,15 +16,58 @@ class JDBCData(BaseModel):
     password: str
     jar: str
 
-def preprocess_jdbc_conn(jdbc_data:JDBCData):
-    # Connect to JDBC data source
-    jdbc_data.db_id = '22'
-    jdbc_data.driver = 'com.microsoft.sqlserver.jdbc.SQLServerDriver'
-    jdbc_data.url = 'jdbc:sqlserver://finland.database.windows.net:1433;databaseName=finlanddb'
-    jdbc_data.username = 'sqluser'
-    jdbc_data.password = '2Cwmz8Jmz*b'
-    jdbc_data.jar = '/jars/sqljdbc_12.2/enu/mssql-jdbc-12.2.0.jre11.jar'
-    return jdbc_data
+def get_jar_path(database_type):
+    if database_type == 'SQLServer':
+        return '/jars/sqljdbc_12.2/enu/mssql-jdbc-12.2.0.jre11.jar'
+    elif database_type == 'MySQL':
+        return ''
+
+
+def get_jdbc_conn_from_mongo(db_id):
+    # Connect to MongoDB to get JDBC connection info
+    mongo_conn_str = os.environ.get('MONGO_CONN_STR')
+    print(f'MONGO_CONN_STR is {mongo_conn_str}')
+    if not mongo_conn_str:
+        raise HTTPException(status_code=400, detail="MONGO_CONN_STR is required")
+    client = None
+    try:
+        client = MongoClient(mongo_conn_str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to connect to MongoDB - {str(e)}")
+    
+    db_names = client.list_database_names()
+    if 'appmeta' not in client.list_database_names():
+        raise HTTPException(status_code=400, detail="app_meta database not found in MongoDB")
+
+    db = client.appmeta
+    if 'connection_info' not in db.list_collection_names():
+        raise HTTPException(status_code=400, detail="connection_info collection not found in MongoDB")
+    collection = db.connection_info
+
+    query = {'_id': int(db_id)}
+    rec = collection.find_one(query)
+    if not rec:
+        raise HTTPException(status_code=400, detail="db_id not found in MongoDB")
+    
+    return JDBCData(
+        db_id = rec['_id'],
+        driver = rec['driver'],
+        url = rec['url'],
+        username = rec['username'],
+        password = base64.b64decode(rec['password']),
+        jar = get_jar_path(rec['database_type'])
+    )
+
+
+# def preprocess_jdbc_conn(jdbc_data:JDBCData):
+#     # Connect to JDBC data source
+#     jdbc_data.db_id = '22'
+#     jdbc_data.driver = 'com.microsoft.sqlserver.jdbc.SQLServerDriver'
+#     jdbc_data.url = 'jdbc:sqlserver://finland.database.windows.net:1433;databaseName=finlanddb'
+#     jdbc_data.username = 'sqluser'
+#     jdbc_data.password = '2Cwmz8Jmz*b'
+#     jdbc_data.jar = 
+#     return jdbc_data
 
 def get_columns_in_resultset(rs):
     metadata = rs.getMetaData()

@@ -2,7 +2,8 @@
 FROM python:3.10-bullseye
 
 # copy and install dependencies from requirements.txt
-RUN pip install --upgrade pip setuptools wheel
+RUN apt update && apt install -y openjdk-11-jre-headless
+RUN pip install --upgrade pip setuptools wheel torch
 COPY requirements.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
@@ -16,8 +17,6 @@ RUN mkdir -p /data/ && cd /data/ \
  && gdown https://drive.google.com/file/d/1YqWj68aNXdXQTG5xCeX6nifHyY-SFLxD/view?usp=share_link --fuzzy --continue \
  && unzip spider.zip && rm spider.zip
 
-RUN pip install torch
-RUN apt update && apt install -y openjdk-11-jre-headless
 RUN mkdir -p /jars && cd /jars && \
     curl -O https://download.microsoft.com/download/a/9/1/a91534b0-ed8c-4501-b491-e1dd0a20335a/sqljdbc_12.2.0.0_enu.zip && unzip sqljdbc_12.2.0.0_enu.zip
 
