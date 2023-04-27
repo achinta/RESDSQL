@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Literal, Dict
 import os
@@ -16,6 +17,18 @@ logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
+# TODO remove hardcoding
+origins = [
+    "https://*.deepiqlab.com",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 spider_db_dir = sqlite_utils.get_spider_db_dir()
 query_dir = '/data/query'
 sqlite_db_dict = {Path(f).stem:Path(f) for f in Path(spider_db_dir).rglob('*.sqlite')}
@@ -105,7 +118,9 @@ def schema_custom_list():
 def schema_custom_from_jdbc(db_mongo_id):
     '''create custom schema from jdbc'''
     jdbc_data = get_jdbc_conn_from_mongo(db_mongo_id)
-    return jdbc_to_sqlite(jdbc_data)
+    result = jdbc_to_sqlite(jdbc_data)
+    get_db_dict(force_refresh=True)
+    return result
 
 @app.get("/schema/custom/{db_id}")
 def schema_spider_list(db_id):
