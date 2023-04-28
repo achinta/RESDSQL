@@ -127,7 +127,6 @@ def jdbc_to_sqlite(jdbc_data:JDBCData):
         
         # Generate SQL script to recreate table schema
         col_names = ',\n'.join([f'{col_name} {col_type} {col_nullable}' for col_name, col_type, col_nullable in table_cols])
-        sql_script = f'CREATE TABLE {table_name} (\n {col_names} \n)'
  
         # Add primary key constraint
         pk_cols = get_primary_keys(db_metadata, table_name)
@@ -136,7 +135,8 @@ def jdbc_to_sqlite(jdbc_data:JDBCData):
         # pk_cols = [pk[3] for pk in primary_keys]
         if len(pk_cols) > 0:
             pk_cols_str = ', '.join(pk_cols)
-            sql_script += f'    PRIMARY KEY ({pk_cols_str})'
+            col_names += f',\n    PRIMARY KEY ({pk_cols_str})'
+        sql_script = f'CREATE TABLE {table_name} (\n {col_names} \n)'
  
         # # Add foreign key constraints
         # fk = db_metadata.getImportedKeys(None, None, table_name)
