@@ -16,6 +16,7 @@ from utils.classifier_loss import ClassifierLoss
 from transformers.trainer_utils import set_seed
 from torch.utils.tensorboard import SummaryWriter
 from utils.load_dataset import ColumnAndTableClassifierDataset
+from pathlib import Path
 
 def parse_option():
     parser = argparse.ArgumentParser("command line arguments for fine-tuning schema item classifier.")
@@ -506,6 +507,8 @@ if __name__ == "__main__":
                 
                 truncated_dataset.append(truncated_data)
             
+            # create directory if missing
+            Path("./data/pre-processing").mkdir(parents = True, exist_ok = True)
             with open("./data/pre-processing/truncated_dataset.json", "w") as f:
                 f.write(json.dumps(truncated_dataset, indent = 2))
             
