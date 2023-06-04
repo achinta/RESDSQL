@@ -1,6 +1,10 @@
 set -e
+echo "Infer text2sql"
 
 device="0"
+
+ln -sf /models ./models
+ln -sf /data ./data
 
 if [ $1 = "base" ]
 then
@@ -20,14 +24,23 @@ else
 fi
 
 model_name="resdsql_$1"
+suffix=""
 
 if [ $2 = "spider" ]
 then
-    # spider's dev set
-    table_path="./data/spider/tables.json"
-    input_dataset_path="./data/spider/dev.json"
-    db_path="./database"
-    output="./predictions/Spider-dev/$model_name/pred.sql"
+    if [ "$3" = "api" ]
+    then
+        # spider's test set
+        table_path="/data/spider/tables.json"
+        input_dataset_path="/data/query/$4_input.json"
+        db_path="/data/spider/database"
+        output="/data/query/$4_output.sql"
+    else
+        table_path="./data/spider/tables.json"
+        input_dataset_path="./data/spider/dev.json"
+        db_path="./data/spider/database"
+        output="./predictions/Spider-dev/$model_name/pred.sql"
+    fi
 elif [ $2 = "spider-realistic" ]
 then
     # spider-realistic
@@ -155,6 +168,33 @@ then
     input_dataset_path="./data/diagnostic-robustness-text-to-sql/data/SQL_sort_order/questions_post_perturbation.json"
     db_path="./data/diagnostic-robustness-text-to-sql/data/SQL_sort_order/databases"
     output="./predictions/SQL_sort_order/$model_name/pred.sql"
+elif [ $2 = "custom" ]
+then
+    if [ -z $4 ]
+    then
+        echo "The third arg (temporary file name) must be given." >&2
+        exit 1
+    else
+        echo "The third arg is $4"
+    fi
+    table_path="/data/query/$4_schema.json"
+    input_dataset_path="/data/query/$4_input.json"
+    db_path="/data/spider/database"
+    output="/data/query/$4_output.sql"
+    echo "out file is $output"
+    suffix=$4
+    # check if schema json exists
+    if [ ! -f $table_path ]
+    then
+        echo "The schema json file $table_path does not exist." >&2
+        exit 1
+    fi
+    # check if input json exists
+    if [ ! -f $input_dataset_path ]
+    then
+        echo "The input json file $input_dataset_path does not exist." >&2
+        exit 1
+    fi
 else
     echo "The second arg must in [spider, spider-realistic, spider-syn, spider-dk, DB_schema_synonym, DB_schema_abbreviation, DB_DBcontent_equivalence, NLQ_keyword_synonym, NLQ_keyword_carrier, NLQ_column_synonym, NLQ_column_carrier, NLQ_column_attribute, NLQ_column_value, NLQ_value_synonym, NLQ_multitype, NLQ_others, SQL_comparison, SQL_sort_order, SQL_NonDB_number, SQL_DB_text, SQL_DB_number]."
     exit
@@ -165,9 +205,11 @@ python preprocessing.py \
     --mode "test" \
     --table_path $table_path \
     --input_dataset_path $input_dataset_path \
-    --output_dataset_path "./data/preprocessed_data/preprocessed_test.json" \
+    --output_dataset_path "./data/preprocessed_data/preprocessed_test_$suffix.json" \
     --db_path $db_path \
     --target_type "sql"
+
+
 
 # predict probability for each schema item
 python schema_item_classifier.py \
@@ -175,16 +217,16 @@ python schema_item_classifier.py \
     --device $device \
     --seed 42 \
     --save_path "./models/text2sql_schema_item_classifier" \
-    --dev_filepath "./data/preprocessed_data/preprocessed_test.json" \
-    --output_filepath "./data/preprocessed_data/test_with_probs.json" \
+    --dev_filepath "./data/preprocessed_data/preprocessed_test_$suffix.json" \
+    --output_filepath "./data/preprocessed_data/test_with_probs_$suffix.json" \
     --use_contents \
     --add_fk_info \
     --mode "test"
 
 # generate text2sql test set
 python text2sql_data_generator.py \
-    --input_dataset_path "./data/preprocessed_data/test_with_probs.json" \
-    --output_dataset_path "./data/preprocessed_data/resdsql_test.json" \
+    --input_dataset_path "./data/preprocessed_data/test_with_probs_$suffix.json" \
+    --output_dataset_path "./data/preprocessed_data/resdsql_test_$suffix.json" \
     --topk_table_num 4 \
     --topk_column_num 5 \
     --mode "test" \
@@ -199,8 +241,8 @@ python text2sql.py \
     --device $device \
     --seed 42 \
     --save_path $text2sql_model_save_path \
-    --mode "eval" \
-    --dev_filepath "./data/preprocessed_data/resdsql_test.json" \
+    --mode "test" \
+    --dev_filepath "./data/preprocessed_data/resdsql_test_$suffix.json" \
     --original_dev_filepath $input_dataset_path \
     --db_path $db_path \
     --num_beams 8 \
